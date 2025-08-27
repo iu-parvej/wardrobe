@@ -309,7 +309,7 @@ function App() {
         `}</style>
 
         <header className="flex flex-col sm:flex-row justify-between items-center mb-10 pb-6 border-b border-white/20">
-          <Link to="/" className="text-3xl font-bold text-purple-300 hover:text-purple-200">Collection of Parvei</Link>
+          <Link to="/" className="text-3xl font-bold text-purple-300 hover:text-purple-200">Collection of PARVEJ</Link>
           <nav className="space-x-4 mt-4 sm:mt-0">
             <Link to="/" className="px-4 py-2 bg-white/10 rounded-lg">Home</Link>
             {isAdmin ? (
@@ -389,7 +389,6 @@ function LoginForm({ setIsAdmin, showMessage }) {
         name="email"
         type="email"
         placeholder="Email"
-        defaultValue="official.parvej.hossain@gmail.com"
         className="block mb-4 p-4 w-full rounded-xl text-black"
         required
       />
@@ -397,7 +396,6 @@ function LoginForm({ setIsAdmin, showMessage }) {
         name="password"
         type="password"
         placeholder="Password"
-        defaultValue="PASSword@789123"
         className="block mb-6 p-4 w-full rounded-xl text-black"
         required
       />
@@ -481,29 +479,93 @@ function Collection({ collections, products }) {
   );
 }
 
+// New component for full-screen image viewing
+function FullscreenImageViewer({ images, initialIndex, onClose }) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  const handleNext = (e) => {
+    e.stopPropagation(); // Prevents clicks from closing the modal
+    setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
+  };
+
+  const handlePrev = (e) => {
+    e.stopPropagation(); // Prevents clicks from closing the modal
+    setCurrentIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="relative max-w-screen-xl max-h-screen-xl w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+        <img
+          src={images[currentIndex] || "https://placehold.co/1000x800?text=No+Image"}
+          alt={`Full screen view of image ${currentIndex + 1}`}
+          className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = "https://placehold.co/1000x800?text=No+Image";
+          }}
+        />
+        <button onClick={onClose} className="absolute top-4 right-4 text-white text-4xl font-bold p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors">
+          ×
+        </button>
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={handlePrev}
+              className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-3 rounded-full text-2xl hover:bg-black/70 transition-colors"
+            >
+              &larr;
+            </button>
+            <button
+              onClick={handleNext}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-3 rounded-full text-2xl hover:bg-black/70 transition-colors"
+            >
+              &rarr;
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Product Details Modal
 function Modal({ product, onClose }) {
   if (!product) return null;
   const images = product.images?.length > 0 ? product.images : [""];
-  const [index, setIndex] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
 
-  const handleNext = () => {
-    setIndex((prevIndex) => (prevIndex + 1) % images.length);
+  const handleNextImage = () => {
+    setCurrentImageIndex((prevIndex) => (prevIndex + 1) % images.length);
   };
 
-  const handlePrev = () => {
-    setIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
+  const handlePrevImage = () => {
+    setCurrentImageIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
+  };
+
+  const openFullscreen = (index, e) => {
+    e.stopPropagation();
+    setFullscreenImage(index);
+  };
+
+  const closeFullscreen = () => {
+    setFullscreenImage(null);
   };
 
   return (
     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white/10 p-6 rounded-2xl max-w-lg w-full relative" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-red-400 text-2xl">×</button>
+      <div className="bg-white/10 p-6 rounded-2xl max-w-lg w-full relative pt-12" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-white text-xl font-bold p-2 bg-red-500 rounded-full hover:bg-red-600 transition-colors z-10">
+          ×
+        </button>
 
-        <div className="relative">
+        <div className="relative mb-4">
           <img
-            src={images[index] || "https://placehold.co/600x400?text=No+Image"}
+            src={images[currentImageIndex] || "https://placehold.co/600x400?text=No+Image"}
             alt={product.title}
-            className="w-full h-64 object-cover rounded-xl"
+            className="w-full h-64 object-cover rounded-xl cursor-pointer"
+            onClick={(e) => openFullscreen(currentImageIndex, e)}
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = "https://placehold.co/600x400?text=No+Image";
@@ -512,14 +574,14 @@ function Modal({ product, onClose }) {
           {images.length > 1 && (
             <>
               <button
-                onClick={handlePrev}
-                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full"
+                onClick={handlePrevImage}
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
               >
                 &larr;
               </button>
               <button
-                onClick={handleNext}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full"
+                onClick={handleNextImage}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
               >
                 &rarr;
               </button>
@@ -552,6 +614,14 @@ function Modal({ product, onClose }) {
           </a>
         )}
       </div>
+
+      {fullscreenImage !== null && (
+        <FullscreenImageViewer
+          images={images}
+          initialIndex={fullscreenImage}
+          onClose={closeFullscreen}
+        />
+      )}
     </div>
   );
 }
