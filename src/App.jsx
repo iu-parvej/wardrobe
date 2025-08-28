@@ -4,29 +4,21 @@ import { Client, Account, Databases, ID } from "appwrite";
 
 // === Initialize Appwrite ===
 const client = new Client();
-
-// Load from .env
 const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
-
 if (!endpoint) throw new Error("VITE_APPWRITE_ENDPOINT missing");
 if (!projectId) throw new Error("VITE_APPWRITE_PROJECT_ID missing");
 if (!databaseId) throw new Error("VITE_APPWRITE_DATABASE_ID missing");
-
 client.setEndpoint(endpoint).setProject(projectId);
-
 export const account = new Account(client);
 export const databases = new Databases(client);
 
 // ======================
 // Reusable Forms & Inputs
 // ======================
-
-// Reusable Multi-Image Input Component
 function MultiImageInput({ value = [], onChange, placeholder = "Image URL" }) {
   const [input, setInput] = useState("");
-
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && input.trim()) {
       e.preventDefault();
@@ -34,20 +26,18 @@ function MultiImageInput({ value = [], onChange, placeholder = "Image URL" }) {
       setInput("");
     }
   };
-
   const removeImage = (indexToRemove) => {
     onChange(value.filter((_, index) => index !== indexToRemove));
   };
-
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-2">
         {value.map((image, i) => (
           <div key={i} className="relative w-24 h-24">
-            <img 
-              src={image} 
-              alt="Preview" 
-              className="w-full h-full object-cover rounded-lg shadow" 
+            <img
+              src={image}
+              alt="Preview"
+              className="w-full h-full object-cover rounded-lg shadow"
               onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/600x400/374151/E9D5FF?text=No+Image"; }}
             />
             <button
@@ -72,10 +62,8 @@ function MultiImageInput({ value = [], onChange, placeholder = "Image URL" }) {
   );
 }
 
-// Tag Input
 function TagInput({ value = [], onChange }) {
   const [input, setInput] = useState("");
-
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && input.trim()) {
       e.preventDefault();
@@ -83,9 +71,7 @@ function TagInput({ value = [], onChange }) {
       setInput("");
     }
   };
-
   const removeTag = (tag) => onChange(value.filter((t) => t !== tag));
-
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-3">
@@ -107,26 +93,32 @@ function TagInput({ value = [], onChange }) {
   );
 }
 
+// ======================
+// Collection Form (with Pin Option)
+// ======================
 function CollectionForm({ onSubmit, editing, onUpdate, onCancel }) {
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
   const [cover, setCover] = useState("");
+  const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
     if (editing) {
       setTitle(editing.title || "");
       setDetails(editing.details || "");
       setCover(editing.cover || "");
+      setPinned(editing.pinned || false);
     } else {
       setTitle("");
       setDetails("");
       setCover("");
+      setPinned(false);
     }
   }, [editing]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const col = { $id: editing?.$id || ID.unique(), title, details, cover };
+    const col = { $id: editing?.$id || ID.unique(), title, details, cover, pinned };
     editing ? onUpdate(col) : onSubmit(col);
   };
 
@@ -137,6 +129,15 @@ function CollectionForm({ onSubmit, editing, onUpdate, onCancel }) {
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="block p-4 w-full text-black rounded-xl" required />
         <textarea value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Details" className="block p-4 w-full text-black rounded-xl" required />
         <MultiImageInput value={cover ? [cover] : []} onChange={(images) => setCover(images[0] || "")} placeholder="Cover Image URL" />
+        <label className="flex items-center gap-2 mt-2">
+          <input
+            type="checkbox"
+            checked={pinned}
+            onChange={e => setPinned(e.target.checked)}
+            className="accent-pink-500"
+          />
+          <span className="text-pink-400 font-semibold">Pin this collection</span>
+        </label>
       </div>
       <div className="flex gap-4 mt-6">
         <button type="submit" className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform duration-300 shadow-md">
@@ -306,6 +307,8 @@ function App() {
           body { font-family: 'Inter', sans-serif; }
           .animate-slide-up { animation: slideUp 0.3s ease-out; }
           @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+          .scrollbar-hide::-webkit-scrollbar { display: none; }
+          .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         `}</style>
 
         <header className="flex flex-col sm:flex-row justify-between items-center mb-10 pb-6 border-b border-white/20">
@@ -413,21 +416,59 @@ function LoginForm({ setIsAdmin, showMessage }) {
 // Home & Collection Pages
 // ======================
 function Home({ collections }) {
+  // Split pinned and non-pinned
+  const pinned = collections.filter(c => c.pinned);
+  const others = collections.filter(c => !c.pinned);
+
+  // Card style for both pinned and unpinned
+  const cardClass = "min-w-[220px] max-w-xs bg-white/10 p-4 rounded-xl hover:scale-105 transition flex-shrink-0";
+  const cardImageClass = "w-full h-40 object-cover rounded-lg";
+
   return (
     <div>
       <h2 className="text-4xl font-bold mb-8 text-center text-indigo-200">Available Collections</h2>
-      {collections.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {collections.map(c => (
+      {pinned.length > 0 && (
+        <div>
+          <h3 className="text-xl font-semibold mb-2 text-pink-300">📌 Pinned Collections</h3>
+          <div
+            className="flex gap-4 overflow-x-auto pb-4 mb-8 scrollbar-hide"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {pinned.map(c => (
+              <Link
+                key={c.$id}
+                to={`/collection/${c.$id}`}
+                className={cardClass + " border-2 border-pink-400"}
+              >
+                <img
+                  src={c.cover || "https://placehold.co/600x400?text=No+Image"}
+                  alt={c.title}
+                  className={cardImageClass}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://placehold.co/600x400?text=No+Image";
+                  }}
+                />
+                <h3 className="font-bold mt-4">{c.title}</h3>
+                <p className="text-sm text-gray-400">{c.details}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      {others.length > 0 ? (
+        <div className="flex flex-wrap gap-6">
+          {others.map(c => (
             <Link
               key={c.$id}
               to={`/collection/${c.$id}`}
-              className="bg-white/10 p-4 rounded-xl hover:scale-105 transition"
+              className={cardClass}
+              style={{ flex: "0 0 220px" }}
             >
               <img
                 src={c.cover || "https://placehold.co/600x400?text=No+Image"}
                 alt={c.title}
-                className="w-full h-40 object-cover rounded-lg"
+                className={cardImageClass}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = "https://placehold.co/600x400?text=No+Image";
@@ -454,23 +495,42 @@ function Collection({ collections, products }) {
 
   const collectionProducts = products[id] || [];
 
+  // Fixed card size for all products
+  const cardClass =
+    "w-[260px] h-[320px] bg-white/10 p-4 rounded-xl hover:scale-105 transition flex-shrink-0 cursor-pointer flex flex-col";
+  const cardImageClass =
+    "w-full h-[180px] object-cover object-center rounded-lg mb-4";
+
   return (
     <div>
       <h2 className="text-4xl font-bold mb-8 text-center text-purple-200">{collection.title}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="flex flex-wrap gap-8">
         {collectionProducts.map(p => (
-          <div key={p.$id} onClick={() => setModal(p)} className="bg-white/10 p-4 rounded-xl cursor-pointer hover:scale-105 transition">
+          <div key={p.$id} onClick={() => setModal(p)} className={cardClass}>
             <img
               src={p.images?.[0] || "https://placehold.co/600x400?text=No+Image"}
               alt={p.title}
-              className="w-full h-40 object-cover rounded-lg"
+              className={cardImageClass}
+              style={{ objectFit: "cover", objectPosition: "center" }}
               onError={(e) => {
                 e.target.onerror = null;
                 e.target.src = "https://placehold.co/600x400?text=No+Image";
               }}
             />
-            <h4 className="font-bold mt-4">{p.title}</h4>
-            <p className="text-green-300 font-bold">৳ {p.price}</p>
+            <div className="flex-1 flex flex-col justify-between">
+              <h4 className="font-bold text-lg">{p.title}</h4>
+              {/* TAGS FIX: Show tags under name */}
+              {p.tags && p.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {p.tags.map((tag, i) => (
+                    <span key={i} className="bg-purple-600 px-2 py-1 rounded text-xs">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-green-300 font-bold text-lg mt-2">৳ {p.price}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -479,20 +539,19 @@ function Collection({ collections, products }) {
   );
 }
 
-// New component for full-screen image viewing
+// ======================
+// Modal & Fullscreen Image
+// ======================
 function FullscreenImageViewer({ images, initialIndex, onClose }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-
   const handleNext = (e) => {
-    e.stopPropagation(); // Prevents clicks from closing the modal
+    e.stopPropagation();
     setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
   };
-
   const handlePrev = (e) => {
-    e.stopPropagation(); // Prevents clicks from closing the modal
+    e.stopPropagation();
     setCurrentIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
   };
-
   return (
     <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="relative max-w-screen-xl max-h-screen-xl w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
@@ -529,7 +588,6 @@ function FullscreenImageViewer({ images, initialIndex, onClose }) {
   );
 }
 
-// Product Details Modal
 function Modal({ product, onClose }) {
   if (!product) return null;
   const images = product.images?.length > 0 ? product.images : [""];
@@ -539,16 +597,13 @@ function Modal({ product, onClose }) {
   const handleNextImage = () => {
     setCurrentImageIndex((prevIndex) => (prevIndex + 1) % images.length);
   };
-
   const handlePrevImage = () => {
     setCurrentImageIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
   };
-
   const openFullscreen = (index, e) => {
     e.stopPropagation();
     setFullscreenImage(index);
   };
-
   const closeFullscreen = () => {
     setFullscreenImage(null);
   };
@@ -559,7 +614,6 @@ function Modal({ product, onClose }) {
         <button onClick={onClose} className="absolute top-4 right-4 text-white text-xl font-bold p-2 bg-red-500 rounded-full hover:bg-red-600 transition-colors z-10">
           ×
         </button>
-
         <div className="relative mb-4">
           <img
             src={images[currentImageIndex] || "https://placehold.co/600x400?text=No+Image"}
@@ -588,11 +642,9 @@ function Modal({ product, onClose }) {
             </>
           )}
         </div>
-
         <h3 className="mt-4 font-bold text-xl">{product.title}</h3>
         <p className="text-gray-300 mt-1">{product.details}</p>
         <p className="text-green-300 font-bold">৳ {product.price}</p>
-
         {product.tags && product.tags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {product.tags.map((tag, i) => (
@@ -602,7 +654,6 @@ function Modal({ product, onClose }) {
             ))}
           </div>
         )}
-
         {product.link && (
           <a
             href={product.link}
@@ -614,7 +665,6 @@ function Modal({ product, onClose }) {
           </a>
         )}
       </div>
-
       {fullscreenImage !== null && (
         <FullscreenImageViewer
           images={images}
@@ -643,7 +693,8 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
         {
           title: col.title,
           details: col.details,
-          cover: col.cover || ""
+          cover: col.cover || "",
+          pinned: !!col.pinned
         }
       );
       setCollections([...collections, response]);
@@ -662,10 +713,11 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
         {
           title: col.title,
           details: col.details,
-          cover: col.cover || ""
+          cover: col.cover || "",
+          pinned: !!col.pinned
         }
       );
-      setCollections(collections.map(c => c.$id === col.$id ? col : c));
+      setCollections(collections.map(c => c.$id === col.$id ? { ...col } : c));
       setEditingCollection(null);
       showMessage("✅ Updated!");
     } catch (error) {
@@ -756,19 +808,23 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
     }
   };
 
+  // Use the same card style for admin preview
+  const cardClass = "min-w-[220px] max-w-xs bg-white/10 p-4 rounded-xl";
+  const cardImageClass = "w-full h-40 object-cover rounded-lg";
+
   return (
     <div className="max-w-6xl mx-auto">
       {!selectedCollection ? (
         <div>
           <h2 className="text-3xl font-bold mb-6 text-center text-purple-200">Manage Collections</h2>
           <CollectionForm onSubmit={createCollection} editing={editingCollection} onUpdate={updateCollection} onCancel={() => setEditingCollection(null)} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-10">
+          <div className="flex flex-wrap gap-6 mt-10">
             {collections.map(c => (
-              <div key={c.$id} className="bg-white/10 p-4 rounded-xl">
+              <div key={c.$id} className={cardClass + (c.pinned ? " border-2 border-pink-400" : "")}>
                 <img
                   src={c.cover || "https://placehold.co/600x400?text=No+Image"}
                   alt={c.title}
-                  className="w-full h-40 object-cover rounded-lg"
+                  className={cardImageClass}
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.src = "https://placehold.co/600x400?text=No+Image";
@@ -776,6 +832,7 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
                 />
                 <h3 className="font-bold mt-4">{c.title}</h3>
                 <p className="text-sm text-gray-400">{c.details}</p>
+                {c.pinned && <span className="inline-block mt-2 px-2 py-1 bg-pink-500 text-white text-xs rounded-full">Pinned</span>}
                 <div className="mt-4 space-x-2">
                   <button onClick={() => setSelectedCollection(c)} className="bg-green-500 text-white px-3 py-1 rounded">Products</button>
                   <button onClick={() => setEditingCollection(c)} className="bg-yellow-500 text-white px-3 py-1 rounded">Edit</button>
@@ -796,20 +853,33 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
             onUpdate={(prod) => updateProduct(selectedCollection.$id, prod)}
             onCancel={() => setEditingProduct(null)}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="flex flex-wrap gap-8">
             {(products[selectedCollection.$id] || []).map(p => (
-              <div key={p.$id} className="bg-white/10 p-4 rounded-xl">
+              <div key={p.$id} className="w-[260px] h-[320px] bg-white/10 p-4 rounded-xl flex flex-col">
                 <img
                   src={p.images?.[0] || "https://placehold.co/600x400?text=No+Image"}
                   alt={p.title}
-                  className="w-full h-40 object-cover rounded-lg"
+                  className="w-full h-[180px] object-cover object-center rounded-lg mb-4"
+                  style={{ objectFit: "cover", objectPosition: "center" }}
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.src = "https://placehold.co/600x400?text=No+Image";
                   }}
                 />
-                <h4 className="font-bold mt-4">{p.title}</h4>
-                <p className="text-green-300 font-bold">৳ {p.price}</p>
+                <div className="flex-1 flex flex-col justify-between">
+                  <h4 className="font-bold text-lg">{p.title}</h4>
+                  {/* TAGS FIX: Show tags under name */}
+                  {p.tags && p.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {p.tags.map((tag, i) => (
+                        <span key={i} className="bg-purple-600 px-2 py-1 rounded text-xs">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-green-300 font-bold text-lg mt-2">৳ {p.price}</p>
+                </div>
                 <div className="mt-4 space-x-2">
                   <button onClick={() => setEditingProduct(p)} className="bg-yellow-500 text-white px-3 py-1 rounded">Edit</button>
                   <button onClick={() => deleteProduct(selectedCollection.$id, p.$id)} className="bg-red-500 text-white px-3 py-1 rounded">Delete</button>
