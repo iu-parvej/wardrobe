@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { Client, Account, Databases, ID } from "appwrite";
 
 // === Initialize Appwrite ===
@@ -94,6 +94,369 @@ function TagInput({ value = [], onChange }) {
 }
 
 // ======================
+// Shop Select Input
+// ======================
+function ShopSelect({ value, onChange, availableShops, onNewShop }) {
+  const [input, setInput] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  
+  const filteredShops = availableShops.filter(shop => 
+    shop.name.toLowerCase().includes(input.toLowerCase())
+  );
+
+  const handleSelect = (shopName) => {
+    onChange(shopName);
+    setInput(shopName);
+    setShowDropdown(false);
+  };
+
+  const handleAddNew = () => {
+    if (input && !availableShops.find(s => s.name === input)) {
+      onNewShop(input);
+      onChange(input);
+    }
+    setShowDropdown(false);
+  };
+
+  return (
+    <div className="relative">
+      <label className="block mb-2 text-gray-400 text-sm">Shop Name:</label>
+      <div className="relative">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => {
+            setInput(e.target.value);
+            onChange(e.target.value);
+            setShowDropdown(true);
+          }}
+          onFocus={() => setShowDropdown(true)}
+          placeholder="Select or add shop"
+          className="block p-3 w-full text-black rounded-lg"
+        />
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+      </div>
+      
+      {showDropdown && (
+        <div className="absolute z-10 mt-1 w-full bg-white rounded-lg shadow-lg border max-h-60 overflow-auto">
+          {filteredShops.length > 0 ? (
+            filteredShops.map((shop) => (
+              <div
+                key={shop.$id}
+                onClick={() => handleSelect(shop.name)}
+                className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-800"
+              >
+                {shop.name}
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-2 text-gray-500">No shops found</div>
+          )}
+          {input && !availableShops.find(s => s.name === input) && (
+            <div
+              onClick={handleAddNew}
+              className="px-4 py-2 hover:bg-blue-50 cursor-pointer text-blue-600 font-medium border-t"
+            >
+              + Add "{input}"
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ======================
+// MultiSelect Dropdown Component
+// ======================
+function MultiSelectDropdown({ options, selected, onChange, label, placeholder }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const toggleOption = (option) => {
+    if (selected.includes(option)) {
+      onChange(selected.filter(item => item !== option));
+    } else {
+      onChange([...selected, option]);
+    }
+  };
+
+  const toggleAll = () => {
+    if (selected.length === options.length) {
+      onChange([]);
+    } else {
+      onChange([...options]);
+    }
+  };
+
+  const clearSelection = () => {
+    onChange([]);
+  };
+
+  return (
+    <div className="relative">
+      <label className="block mb-2 text-gray-400 text-sm">{label}</label>
+      <div 
+        className="bg-white/20 p-3 rounded-lg cursor-pointer flex justify-between items-center"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="text-white">
+          {selected.length === 0 ? placeholder : 
+           selected.length === options.length ? "All selected" :
+           `${selected.length} selected`}
+        </span>
+        <svg 
+          className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-10 mt-1 w-full bg-white rounded-lg shadow-lg border max-h-60 overflow-auto">
+          <div className="p-2 border-b border-gray-200">
+            <div className="flex justify-between text-sm">
+              <button 
+                onClick={toggleAll}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {selected.length === options.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button 
+                onClick={clearSelection}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          
+          <div className="py-1">
+            {options.length > 0 ? (
+              options.map((option) => (
+                <div
+                  key={option}
+                  onClick={() => toggleOption(option)}
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(option)}
+                    onChange={() => {}}
+                    className="mr-2 accent-purple-500"
+                  />
+                  <span className="text-gray-800">{option}</span>
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-2 text-gray-500">No options available</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ======================
+// Price Range Input Component
+// ======================
+function PriceRangeInput({ value, onChange }) {
+  const [localValue, setLocalValue] = useState(value);
+
+  // Sync localValue with external value changes
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleMinChange = (e) => {
+    const min = parseInt(e.target.value) || 0;
+    const newValue = [min, Math.max(localValue[1], min)];
+    setLocalValue(newValue);
+    onChange(newValue);
+  };
+
+  const handleMaxChange = (e) => {
+    const max = parseInt(e.target.value) || 10000;
+    const newValue = [Math.min(localValue[0], max), max];
+    setLocalValue(newValue);
+    onChange(newValue);
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Increased margin-top for more spacing below label */}
+      <div className="mt-7 grid grid-cols-2 gap-3">
+        <div className="flex flex-col">
+          <input
+            type="number"
+            value={localValue[0]}
+            onChange={handleMinChange}
+            min="0"
+            max="10000"
+            placeholder="Min Price (৳)"
+            className="w-full p-3 bg-white/20 text-white rounded-lg h-12"
+          />
+        </div>
+        <div className="flex flex-col">
+          <input
+            type="number"
+            value={localValue[1]}
+            onChange={handleMaxChange}
+            min="0"
+            max="10000"
+            placeholder="Max Price (৳)"
+            className="w-full p-3 bg-white/20 text-white rounded-lg h-12"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ======================
+// Filter Bar Component
+// ======================
+function FilterBar({ 
+  tags, 
+  shops, 
+  onTagFilter, 
+  onShopFilter, 
+  onPriceRange, 
+  onSearch,
+  selectedTags = [],
+  selectedShops = [],
+  priceRange = [0, 10000]
+}) {
+  const [showFilters, setShowFilters] = useState(false);
+  const [localSearch, setLocalSearch] = useState('');
+  const [localPriceRange, setLocalPriceRange] = useState(priceRange);
+  const [localSelectedTags, setLocalSelectedTags] = useState(selectedTags);
+  const [localSelectedShops, setLocalSelectedShops] = useState(selectedShops);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onSearch(localSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, onSearch]);
+
+  const applyFilters = () => {
+    onTagFilter(localSelectedTags);
+    onShopFilter(localSelectedShops);
+    onPriceRange(localPriceRange);
+  };
+
+  const resetFilters = () => {
+    setLocalSelectedTags([]);
+    setLocalSelectedShops([]);
+    setLocalPriceRange([0, 10000]);
+    onTagFilter([]);
+    onShopFilter([]);
+    onPriceRange([0, 10000]);
+    setLocalSearch('');
+    onSearch('');
+  };
+
+  return (
+    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 mb-6">
+      {/* Search and Filter Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4">
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            placeholder="Search products by name, tag, or shop..."
+            className="w-full p-3 pl-10 bg-white/20 text-white rounded-lg focus:outline-none"
+          />
+          <svg 
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 text-purple-200 hover:text-purple-100 font-medium"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+            </svg>
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </button>
+          
+          <button
+            onClick={resetFilters}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Clear All
+          </button>
+        </div>
+      </div>
+
+      {/* Advanced Filters */}
+      {showFilters && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-white/20">
+          {/* Tags Filter */}
+          <div>
+            <MultiSelectDropdown
+              options={tags}
+              selected={localSelectedTags}
+              onChange={setLocalSelectedTags}
+              label="Tags"
+              placeholder="Select tags"
+            />
+          </div>
+
+          {/* Shops Filter */}
+          <div>
+            <MultiSelectDropdown
+              options={shops.map(s => s.name)}
+              selected={localSelectedShops}
+              onChange={setLocalSelectedShops}
+              label="Shops"
+              placeholder="Select shops"
+            />
+          </div>
+
+          {/* Price Range */}
+          <div>
+            <PriceRangeInput
+              value={localPriceRange}
+              onChange={setLocalPriceRange}
+            />
+          </div>
+        </div>
+      )}
+
+      {showFilters && (
+        <div className="flex justify-end mt-4 pt-4 border-t border-white/20">
+          <button
+            onClick={applyFilters}
+            className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-medium transition-colors"
+          >
+            Apply Filters
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ======================
 // Collection Form (with Pin Option)
 // ======================
 function CollectionForm({ onSubmit, editing, onUpdate, onCancel }) {
@@ -149,13 +512,14 @@ function CollectionForm({ onSubmit, editing, onUpdate, onCancel }) {
   );
 }
 
-function ProductForm({ colId, onSubmit, editing, onUpdate, onCancel }) {
+function ProductForm({ colId, onSubmit, editing, onUpdate, onCancel, shops, onAddShop }) {
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [details, setDetails] = useState("");
   const [link, setLink] = useState("");
   const [tags, setTags] = useState([]);
   const [images, setImages] = useState([]);
+  const [shopName, setShopName] = useState("");
 
   useEffect(() => {
     if (editing) {
@@ -165,6 +529,7 @@ function ProductForm({ colId, onSubmit, editing, onUpdate, onCancel }) {
       setLink(editing.link || "");
       setTags(editing.tags || []);
       setImages(editing.images || []);
+      setShopName(editing.shop_name || "");
     } else {
       setTitle("");
       setPrice("");
@@ -172,6 +537,7 @@ function ProductForm({ colId, onSubmit, editing, onUpdate, onCancel }) {
       setLink("");
       setTags([]);
       setImages([]);
+      setShopName("");
     }
   }, [editing]);
 
@@ -185,6 +551,7 @@ function ProductForm({ colId, onSubmit, editing, onUpdate, onCancel }) {
       link,
       tags,
       images,
+      shop_name: shopName
     };
     editing ? onUpdate(prod) : onSubmit(prod);
   };
@@ -205,6 +572,14 @@ function ProductForm({ colId, onSubmit, editing, onUpdate, onCancel }) {
           <label className="block mb-2 text-gray-400 text-sm">Images:</label>
           <MultiImageInput value={images} onChange={setImages} placeholder="Add Image URL & press Enter" />
         </div>
+        <div className="py-2">
+          <ShopSelect 
+            value={shopName} 
+            onChange={setShopName} 
+            availableShops={shops}
+            onNewShop={onAddShop}
+          />
+        </div>
       </div>
       <div className="flex gap-4 mt-6">
         <button type="submit" className="flex-1 bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform duration-300 shadow-md">
@@ -222,9 +597,16 @@ function ProductForm({ colId, onSubmit, editing, onUpdate, onCancel }) {
 function App() {
   const [collections, setCollections] = useState([]);
   const [products, setProducts] = useState({});
+  const [shops, setShops] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ text: "", type: "" });
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedShops, setSelectedShops] = useState([]);
+  const [priceRange, setPriceRange] = useState([0, 10000]);
 
   const showMessage = (text, type = "info") => {
     setMessage({ text, type });
@@ -266,6 +648,9 @@ function App() {
       setCollections(cols);
 
       const { documents: prods } = await databases.listDocuments(databaseId, "products");
+      const { documents: shopDocs } = await databases.listDocuments(databaseId, "shops");
+
+      setShops(shopDocs);
 
       const grouped = {};
       cols.forEach(col => {
@@ -274,7 +659,8 @@ function App() {
           .map(p => ({
             ...p,
             tags: p.tags ? JSON.parse(p.tags) : [],
-            images: p.images ? JSON.parse(p.images) : []
+            images: p.images ? JSON.parse(p.images) : [],
+            shop_name: p.shop_name || ""
           }));
       });
       setProducts(grouped);
@@ -340,8 +726,36 @@ function App() {
         </header>
 
         <Routes>
-          <Route path="/" element={<Home collections={collections} />} />
-          <Route path="/collection/:id" element={<Collection products={products} collections={collections} />} />
+          <Route path="/" element={
+            <Home 
+              collections={collections} 
+              products={products}
+              shops={shops}
+              searchQuery={searchQuery}
+              selectedTags={selectedTags}
+              selectedShops={selectedShops}
+              priceRange={priceRange}
+              onSearch={setSearchQuery}
+              onTagFilter={setSelectedTags}
+              onShopFilter={setSelectedShops}
+              onPriceRange={setPriceRange}
+            />
+          } />
+          <Route path="/collection/:id" element={
+            <Collection 
+              products={products} 
+              collections={collections}
+              shops={shops}
+              searchQuery={searchQuery}
+              selectedTags={selectedTags}
+              selectedShops={selectedShops}
+              priceRange={priceRange}
+              onSearch={setSearchQuery}
+              onTagFilter={setSelectedTags}
+              onShopFilter={setSelectedShops}
+              onPriceRange={setPriceRange}
+            />
+          } />
           <Route path="/login" element={<LoginForm setIsAdmin={setIsAdmin} showMessage={showMessage} />} />
           <Route path="/admin" element={isAdmin ? (
             <Admin
@@ -349,6 +763,8 @@ function App() {
               setCollections={setCollections}
               products={products}
               setProducts={setProducts}
+              shops={shops}
+              setShops={setShops}
               showMessage={showMessage}
               fetchData={fetchData}
             />
@@ -415,85 +831,333 @@ function LoginForm({ setIsAdmin, showMessage }) {
 // ======================
 // Home & Collection Pages
 // ======================
-function Home({ collections }) {
-  // Split pinned and non-pinned
+function Home({ 
+  collections, 
+  products, 
+  shops,
+  searchQuery,
+  selectedTags,
+  selectedShops,
+  priceRange,
+  onSearch,
+  onTagFilter,
+  onShopFilter,
+  onPriceRange
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Extract all unique tags from products
+  const allTags = useMemo(() => {
+    const tagsSet = new Set();
+    Object.values(products).forEach(collectionProducts => {
+      collectionProducts.forEach(product => {
+        if (product.tags && Array.isArray(product.tags)) {
+          product.tags.forEach(tag => tagsSet.add(tag));
+        }
+      });
+    });
+    return Array.from(tagsSet);
+  }, [products]);
+
+  // Filter function
+  const filterProducts = (productList) => {
+    return productList.filter(product => {
+      // Search filter
+      if (searchQuery && 
+          !product.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !product.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) &&
+          !(product.shop_name && product.shop_name.toLowerCase().includes(searchQuery.toLowerCase()))) {
+        return false;
+      }
+      
+      // Tags filter
+      if (selectedTags.length > 0 && 
+          !selectedTags.some(tag => product.tags.includes(tag))) {
+        return false;
+      }
+      
+      // Shops filter
+      if (selectedShops.length > 0 && 
+          !selectedShops.includes(product.shop_name)) {
+        return false;
+      }
+      
+      // Price range filter
+      if (product.price < priceRange[0] || product.price > priceRange[1]) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // Get all products across all collections
+  const allProducts = useMemo(() => {
+    let all = [];
+    Object.values(products).forEach(collectionProducts => {
+      all = [...all, ...collectionProducts];
+    });
+    return all;
+  }, [products]);
+
+  // Filter all products based on search, tags, shops, and price range
+  const filteredProducts = filterProducts(allProducts);
+
+  // Check if we should show products directly on homepage
+  const showProductsDirectly = searchQuery !== "" || 
+                               selectedTags.length > 0 || 
+                               selectedShops.length > 0 || 
+                               priceRange[0] > 0 || 
+                               priceRange[1] < 10000;
+
+  // Split pinned and non-pinned collections
   const pinned = collections.filter(c => c.pinned);
   const others = collections.filter(c => !c.pinned);
 
-  // Card style for both pinned and unpinned
-  const cardClass = "min-w-[220px] max-w-xs bg-white/10 p-4 rounded-xl hover:scale-105 transition flex-shrink-0";
+  // Unified card style for both pinned and non-pinned (using the pinned card style)
+  const cardClass = "min-w-[220px] max-w-xs bg-white/10 p-4 rounded-xl hover:scale-105 transition flex-shrink-0 border-2";
   const cardImageClass = "w-full h-40 object-cover rounded-lg";
+  
+  // Product card style
+  const productCardClass = "w-[260px] h-[320px] bg-white/10 p-4 rounded-xl hover:scale-105 transition flex-shrink-0 cursor-pointer flex flex-col";
+  const productImageClass = "w-full h-[180px] object-cover object-center rounded-lg mb-4";
+
+  // State for modal
+  const [modal, setModal] = useState(null);
+
+  // Handle product click
+  const handleProductClick = (product) => {
+    // Find which collection this product belongs to
+    const collectionId = Object.keys(products).find(colId => 
+      products[colId].some(p => p.$id === product.$id)
+    );
+    
+    if (collectionId) {
+      // Navigate to the collection with the product ID as state
+      navigate(`/collection/${collectionId}`, { 
+        state: { 
+          selectedProduct: product,
+          fromSearch: true,
+          searchQuery,
+          selectedTags,
+          selectedShops,
+          priceRange
+        } 
+      });
+    }
+  };
 
   return (
     <div>
-      <h2 className="text-4xl font-bold mb-8 text-center text-indigo-200">Available Collections</h2>
-      {pinned.length > 0 && (
+      {/* Filter Bar */}
+      <FilterBar
+        tags={allTags}
+        shops={shops}
+        onTagFilter={onTagFilter}
+        onShopFilter={onShopFilter}
+        onPriceRange={onPriceRange}
+        onSearch={onSearch}
+        selectedTags={selectedTags}
+        selectedShops={selectedShops}
+        priceRange={priceRange}
+      />
+
+      {/* Show products directly if filtering */}
+      {showProductsDirectly && filteredProducts.length > 0 ? (
         <div>
-          <h3 className="text-xl font-semibold mb-2 text-pink-300">📌 Pinned Collections</h3>
-          <div
-            className="flex gap-4 overflow-x-auto pb-4 mb-8 scrollbar-hide"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
-            {pinned.map(c => (
-              <Link
-                key={c.$id}
-                to={`/collection/${c.$id}`}
-                className={cardClass + " border-2 border-pink-400"}
-              >
+          <h3 className="text-2xl font-bold mb-6 text-center text-purple-200">
+            {filteredProducts.length} Product{filteredProducts.length !== 1 ? 's' : ''} Found
+          </h3>
+          <div className="flex flex-wrap gap-8">
+            {filteredProducts.map(p => (
+              <div key={p.$id} onClick={() => handleProductClick(p)} className={productCardClass}>
                 <img
-                  src={c.cover || "https://placehold.co/600x400?text=No+Image"}
-                  alt={c.title}
-                  className={cardImageClass}
+                  src={p.images?.[0] || "https://placehold.co/600x400?text=No+Image"}
+                  alt={p.title}
+                  className={productImageClass}
+                  style={{ objectFit: "cover", objectPosition: "center" }}
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.src = "https://placehold.co/600x400?text=No+Image";
                   }}
                 />
-                <h3 className="font-bold mt-4">{c.title}</h3>
-                <p className="text-sm text-gray-400">{c.details}</p>
-              </Link>
+                <div className="flex-1 flex flex-col justify-between">
+                  <h4 className="font-bold text-lg">{p.title}</h4>
+                  <p className="text-green-300 font-bold text-lg mt-2">৳ {p.price}</p>
+                  {p.shop_name && (
+                    <p className="text-sm text-blue-300 mt-1">from {p.shop_name}</p>
+                  )}
+                  {p.tags && p.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {p.tags.map((tag, i) => (
+                        <span key={i} className="bg-purple-600 px-2 py-1 rounded text-xs">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </div>
-      )}
-      {others.length > 0 ? (
-        <div className="flex flex-wrap gap-6">
-          {others.map(c => (
-            <Link
-              key={c.$id}
-              to={`/collection/${c.$id}`}
-              className={cardClass}
-              style={{ flex: "0 0 220px" }}
-            >
-              <img
-                src={c.cover || "https://placehold.co/600x400?text=No+Image"}
-                alt={c.title}
-                className={cardImageClass}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "https://placehold.co/600x400?text=No+Image";
-                }}
-              />
-              <h3 className="font-bold mt-4">{c.title}</h3>
-              <p className="text-sm text-gray-400">{c.details}</p>
-            </Link>
-          ))}
-        </div>
       ) : (
-        <p className="text-center text-gray-400">No collections yet.</p>
+        // Show collections when not filtering
+        <>
+          {pinned.length > 0 && (
+            <div>
+              <h3 className="text-xl font-semibold mb-2 text-pink-300">📌 Pinned Collections</h3>
+              <div
+                className="flex gap-4 overflow-x-auto pb-4 mb-8 scrollbar-hide"
+                style={{ WebkitOverflowScrolling: "touch" }}
+              >
+                {pinned.map(c => {
+                  const productCount = (products[c.$id] || []).length;
+                  return (
+                    <Link
+                      key={c.$id}
+                      to={`/collection/${c.$id}`}
+                      className={cardClass + " border-pink-400"}
+                    >
+                      <img
+                        src={c.cover || "https://placehold.co/600x400?text=No+Image"}
+                        alt={c.title}
+                        className={cardImageClass}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://placehold.co/600x400?text=No+Image";
+                        }}
+                      />
+                      <h3 className="font-bold mt-4">{c.title}</h3>
+                      <p className="text-sm text-gray-400">{c.details}</p>
+                      <p className="text-xs text-purple-300 mt-2">{productCount} product{productCount !== 1 ? 's' : ''}</p>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          
+          {others.length > 0 ? (
+            <div className="flex flex-wrap gap-6">
+              {others.map(c => {
+                const productCount = (products[c.$id] || []).length;
+                return (
+                  <Link
+                    key={c.$id}
+                    to={`/collection/${c.$id}`}
+                    className={cardClass + " border-white/20"}
+                    style={{ flex: "0 0 220px" }}
+                  >
+                    <img
+                      src={c.cover || "https://placehold.co/600x400?text=No+Image"}
+                      alt={c.title}
+                      className={cardImageClass}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "https://placehold.co/600x400?text=No+Image";
+                      }}
+                    />
+                    <h3 className="font-bold mt-4">{c.title}</h3>
+                    <p className="text-sm text-gray-400">{c.details}</p>
+                    <p className="text-xs text-purple-300 mt-2">{productCount} product{productCount !== 1 ? 's' : ''}</p>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-center text-gray-400">No collections available.</p>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function Collection({ collections, products }) {
+function Collection({ 
+  collections, 
+  products, 
+  shops,
+  searchQuery,
+  selectedTags,
+  selectedShops,
+  priceRange,
+  onSearch,
+  onTagFilter,
+  onShopFilter,
+  onPriceRange
+}) {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const collection = collections.find(c => c.$id === id);
-  const [modal, setModal] = useState(null);
+  
+  // Extract all unique tags from all products
+  const allTags = useMemo(() => {
+    const tagsSet = new Set();
+    Object.values(products).forEach(collectionProducts => {
+      collectionProducts.forEach(product => {
+        if (product.tags && Array.isArray(product.tags)) {
+          product.tags.forEach(tag => tagsSet.add(tag));
+        }
+      });
+    });
+    return Array.from(tagsSet);
+  }, [products]);
 
   if (!collection) return <p className="text-center text-red-400 mt-10">Not found</p>;
 
-  const collectionProducts = products[id] || [];
+  // Filter products based on search, tags, shops, and price range
+  const collectionProducts = (products[id] || []).filter(product => {
+    // Search filter
+    if (searchQuery && 
+        !product.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !product.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        !(product.shop_name && product.shop_name.toLowerCase().includes(searchQuery.toLowerCase()))) {
+      return false;
+    }
+    
+    // Tags filter
+    if (selectedTags.length > 0 && 
+        !selectedTags.some(tag => product.tags.includes(tag))) {
+      return false;
+    }
+    
+    // Shops filter
+    if (selectedShops.length > 0 && 
+        !selectedShops.includes(product.shop_name)) {
+      return false;
+    }
+    
+    // Price range filter
+    if (product.price < priceRange[0] || product.price > priceRange[1]) {
+      return false;
+    }
+    
+    return true;
+  });
+
+  // Get product from navigation state if available
+  const [selectedProduct, setSelectedProduct] = useState(location.state?.selectedProduct || null);
+  const fromSearch = location.state?.fromSearch || false;
+
+  // Handle back button
+  const handleBack = () => {
+    if (fromSearch && location.state?.searchQuery) {
+      // Go back to search results
+      navigate('/', { 
+        state: {
+          searchQuery: location.state.searchQuery,
+          selectedTags: location.state.selectedTags,
+          selectedShops: location.state.selectedShops,
+          priceRange: location.state.priceRange
+        } 
+      });
+    } else {
+      navigate('/');
+    }
+  };
 
   // Fixed card size for all products
   const cardClass =
@@ -503,102 +1167,88 @@ function Collection({ collections, products }) {
 
   return (
     <div>
-      <h2 className="text-4xl font-bold mb-8 text-center text-purple-200">{collection.title}</h2>
-      <div className="flex flex-wrap gap-8">
-        {collectionProducts.map(p => (
-          <div key={p.$id} onClick={() => setModal(p)} className={cardClass}>
-            <img
-              src={p.images?.[0] || "https://placehold.co/600x400?text=No+Image"}
-              alt={p.title}
-              className={cardImageClass}
-              style={{ objectFit: "cover", objectPosition: "center" }}
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "https://placehold.co/600x400?text=No+Image";
-              }}
-            />
-            <div className="flex-1 flex flex-col justify-between">
-              <h4 className="font-bold text-lg">{p.title}</h4>
-              {/* TAGS FIX: Show tags under name */}
-              {p.tags && p.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {p.tags.map((tag, i) => (
-                    <span key={i} className="bg-purple-600 px-2 py-1 rounded text-xs">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <p className="text-green-300 font-bold text-lg mt-2">৳ {p.price}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      {modal && <Modal product={modal} onClose={() => setModal(null)} />}
-    </div>
-  );
-}
-
-// ======================
-// Modal & Fullscreen Image
-// ======================
-function FullscreenImageViewer({ images, initialIndex, onClose }) {
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const handleNext = (e) => {
-    e.stopPropagation();
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
-  };
-  const handlePrev = (e) => {
-    e.stopPropagation();
-    setCurrentIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
-  };
-  return (
-    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="relative max-w-screen-xl max-h-screen-xl w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-        <img
-          src={images[currentIndex] || "https://placehold.co/1000x800?text=No+Image"}
-          alt={`Full screen view of image ${currentIndex + 1}`}
-          className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = "https://placehold.co/1000x800?text=No+Image";
-          }}
-        />
-        <button onClick={onClose} className="absolute top-4 right-4 text-white text-4xl font-bold p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors">
-          ×
+      {/* Filter Bar */}
+      <FilterBar
+        tags={allTags}
+        shops={shops}
+        onTagFilter={onTagFilter}
+        onShopFilter={onShopFilter}
+        onPriceRange={onPriceRange}
+        onSearch={onSearch}
+        selectedTags={selectedTags}
+        selectedShops={selectedShops}
+        priceRange={priceRange}
+      />
+      
+      <div className="flex items-center mb-6">
+        <button 
+          onClick={handleBack}
+          className="mr-4 text-purple-200 hover:text-purple-100"
+        >
+          ← Back
         </button>
-        {images.length > 1 && (
-          <>
-            <button
-              onClick={handlePrev}
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-3 rounded-full text-2xl hover:bg-black/70 transition-colors"
-            >
-              &larr;
-            </button>
-            <button
-              onClick={handleNext}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-3 rounded-full text-2xl hover:bg-black/70 transition-colors"
-            >
-              &rarr;
-            </button>
-          </>
-        )}
+        <h2 className="text-4xl font-bold text-center text-purple-200 flex-1">{collection.title}</h2>
       </div>
+      
+      {collectionProducts.length > 0 ? (
+        <div className="flex flex-wrap gap-8">
+          {collectionProducts.map(p => (
+            <div key={p.$id} onClick={() => setSelectedProduct(p)} className={cardClass}>
+              <img
+                src={p.images?.[0] || "https://placehold.co/600x400?text=No+Image"}
+                alt={p.title}
+                className={cardImageClass}
+                style={{ objectFit: "cover", objectPosition: "center" }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://placehold.co/600x400?text=No+Image";
+                }}
+              />
+              <div className="flex-1 flex flex-col justify-between">
+                <h4 className="font-bold text-lg">{p.title}</h4>
+                <p className="text-green-300 font-bold text-lg mt-2">৳ {p.price}</p>
+                {p.shop_name && (
+                  <p className="text-sm text-blue-300 mt-1">from {p.shop_name}</p>
+                )}
+                {p.tags && p.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {p.tags.map((tag, i) => (
+                      <span key={i} className="bg-purple-600 px-2 py-1 rounded text-xs">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-center text-gray-400">No products match your filters.</p>
+      )}
+      
+      {selectedProduct && (
+        <ProductModal 
+          product={selectedProduct} 
+          onClose={() => setSelectedProduct(null)} 
+        />
+      )}
     </div>
   );
 }
 
-function Modal({ product, onClose }) {
-  if (!product) return null;
-  const images = product.images?.length > 0 ? product.images : [""];
+// ======================
+// Product Modal
+// ======================
+function ProductModal({ product, onClose }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [fullscreenImage, setFullscreenImage] = useState(null);
 
   const handleNextImage = () => {
-    setCurrentImageIndex((prevIndex) => (prevIndex + 1) % images.length);
+    setCurrentImageIndex((prevIndex) => (prevIndex + 1) % (product.images?.length || 1));
   };
   const handlePrevImage = () => {
-    setCurrentImageIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
+    setCurrentImageIndex((prevIndex) => (prevIndex - 1 + (product.images?.length || 1)) % (product.images?.length || 1));
   };
   const openFullscreen = (index, e) => {
     e.stopPropagation();
@@ -608,6 +1258,10 @@ function Modal({ product, onClose }) {
     setFullscreenImage(null);
   };
 
+  if (!product) return null;
+
+  const images = product.images?.length > 0 ? product.images : ["https://placehold.co/600x400?text=No+Image"];
+
   return (
     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white/10 p-6 rounded-2xl max-w-lg w-full relative pt-12" onClick={(e) => e.stopPropagation()}>
@@ -616,7 +1270,7 @@ function Modal({ product, onClose }) {
         </button>
         <div className="relative mb-4">
           <img
-            src={images[currentImageIndex] || "https://placehold.co/600x400?text=No+Image"}
+            src={images[currentImageIndex]}
             alt={product.title}
             className="w-full h-64 object-cover rounded-xl cursor-pointer"
             onClick={(e) => openFullscreen(currentImageIndex, e)}
@@ -644,6 +1298,9 @@ function Modal({ product, onClose }) {
         </div>
         <h3 className="mt-4 font-bold text-xl">{product.title}</h3>
         <p className="text-gray-300 mt-1">{product.details}</p>
+        {product.shop_name && (
+          <p className="text-blue-300 mt-1">Shop: {product.shop_name}</p>
+        )}
         <p className="text-green-300 font-bold">৳ {product.price}</p>
         {product.tags && product.tags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -666,11 +1323,38 @@ function Modal({ product, onClose }) {
         )}
       </div>
       {fullscreenImage !== null && (
-        <FullscreenImageViewer
-          images={images}
-          initialIndex={fullscreenImage}
-          onClose={closeFullscreen}
-        />
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4" onClick={closeFullscreen}>
+          <div className="relative max-w-screen-xl max-h-screen-xl w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={images[fullscreenImage]}
+              alt={`Full screen view of image ${fullscreenImage + 1}`}
+              className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "https://placehold.co/1000x800?text=No+Image";
+              }}
+            />
+            <button onClick={closeFullscreen} className="absolute top-4 right-4 text-white text-4xl font-bold p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors">
+              ×
+            </button>
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={handlePrevImage}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-3 rounded-full text-2xl hover:bg-black/70 transition-colors"
+                >
+                  &larr;
+                </button>
+                <button
+                  onClick={handleNextImage}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-3 rounded-full text-2xl hover:bg-black/70 transition-colors"
+                >
+                  &rarr;
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -679,7 +1363,16 @@ function Modal({ product, onClose }) {
 // ======================
 // Admin Panel
 // ======================
-function Admin({ collections, setCollections, products, setProducts, showMessage, fetchData }) {
+function Admin({ 
+  collections, 
+  setCollections, 
+  products, 
+  setProducts, 
+  shops, 
+  setShops, 
+  showMessage, 
+  fetchData 
+}) {
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [editingCollection, setEditingCollection] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -752,7 +1445,8 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
           details: prod.details,
           link: prod.link || "",
           tags: JSON.stringify(prod.tags),
-          images: JSON.stringify(prod.images)
+          images: JSON.stringify(prod.images),
+          shop_name: prod.shop_name || ""
         }
       );
       setProducts({
@@ -760,7 +1454,8 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
         [colId]: [...(products[colId] || []), {
           ...response,
           tags: prod.tags,
-          images: prod.images
+          images: prod.images,
+          shop_name: prod.shop_name
         }]
       });
       showMessage("✅ Product added!");
@@ -781,7 +1476,8 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
           details: prod.details,
           link: prod.link || "",
           tags: JSON.stringify(prod.tags),
-          images: JSON.stringify(prod.images)
+          images: JSON.stringify(prod.images),
+          shop_name: prod.shop_name || ""
         }
       );
       setProducts({
@@ -808,6 +1504,23 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
     }
   };
 
+  const addShop = async (shopName) => {
+    try {
+      const response = await databases.createDocument(
+        databaseId,
+        "shops",
+        ID.unique(),
+        {
+          name: shopName
+        }
+      );
+      setShops([...shops, response]);
+      showMessage("✅ Shop added!");
+    } catch (error) {
+      showMessage("❌ " + error.message, "error");
+    }
+  };
+
   // Use the same card style for admin preview
   const cardClass = "min-w-[220px] max-w-xs bg-white/10 p-4 rounded-xl";
   const cardImageClass = "w-full h-40 object-cover rounded-lg";
@@ -820,7 +1533,7 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
           <CollectionForm onSubmit={createCollection} editing={editingCollection} onUpdate={updateCollection} onCancel={() => setEditingCollection(null)} />
           <div className="flex flex-wrap gap-6 mt-10">
             {collections.map(c => (
-              <div key={c.$id} className={cardClass + (c.pinned ? " border-2 border-pink-400" : "")}>
+              <div key={c.$id} className={cardClass + (c.pinned ? " border-2 border-pink-400" : " border-2 border-white/20")}>
                 <img
                   src={c.cover || "https://placehold.co/600x400?text=No+Image"}
                   alt={c.title}
@@ -852,6 +1565,8 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
             editing={editingProduct}
             onUpdate={(prod) => updateProduct(selectedCollection.$id, prod)}
             onCancel={() => setEditingProduct(null)}
+            shops={shops}
+            onAddShop={addShop}
           />
           <div className="flex flex-wrap gap-8">
             {(products[selectedCollection.$id] || []).map(p => (
@@ -868,7 +1583,10 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
                 />
                 <div className="flex-1 flex flex-col justify-between">
                   <h4 className="font-bold text-lg">{p.title}</h4>
-                  {/* TAGS FIX: Show tags under name */}
+                  <p className="text-green-300 font-bold text-lg mt-2">৳ {p.price}</p>
+                  {p.shop_name && (
+                    <p className="text-sm text-blue-300 mt-1">from {p.shop_name}</p>
+                  )}
                   {p.tags && p.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {p.tags.map((tag, i) => (
@@ -878,7 +1596,6 @@ function Admin({ collections, setCollections, products, setProducts, showMessage
                       ))}
                     </div>
                   )}
-                  <p className="text-green-300 font-bold text-lg mt-2">৳ {p.price}</p>
                 </div>
                 <div className="mt-4 space-x-2">
                   <button onClick={() => setEditingProduct(p)} className="bg-yellow-500 text-white px-3 py-1 rounded">Edit</button>
