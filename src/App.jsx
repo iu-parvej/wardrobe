@@ -268,30 +268,42 @@ function MultiSelectDropdown({ options, selected, onChange, label, placeholder }
 // Price Range Input Component
 // ======================
 function PriceRangeInput({ value, onChange }) {
-  const [localValue, setLocalValue] = useState(value);
+  const [localValue, setLocalValue] = useState([
+    value[0] === 0 ? "" : value[0],
+    value[1] === 10000 ? "" : value[1]
+  ]);
 
   // Sync localValue with external value changes
   useEffect(() => {
-    setLocalValue(value);
+    setLocalValue([
+      value[0] === 0 ? "" : value[0],
+      value[1] === 10000 ? "" : value[1]
+    ]);
   }, [value]);
 
   const handleMinChange = (e) => {
-    const min = parseInt(e.target.value) || 0;
-    const newValue = [min, Math.max(localValue[1], min)];
-    setLocalValue(newValue);
-    onChange(newValue);
+    const min = e.target.value === "" ? "" : parseInt(e.target.value) || 0;
+    const max = localValue[1] === "" ? 10000 : parseInt(localValue[1]);
+    setLocalValue([min, localValue[1]]);
+    onChange([
+      min === "" ? 0 : min,
+      max
+    ]);
   };
 
   const handleMaxChange = (e) => {
-    const max = parseInt(e.target.value) || 10000;
-    const newValue = [Math.min(localValue[0], max), max];
-    setLocalValue(newValue);
-    onChange(newValue);
+    const max = e.target.value === "" ? "" : parseInt(e.target.value) || 10000;
+    const min = localValue[0] === "" ? 0 : parseInt(localValue[0]);
+    setLocalValue([localValue[0], max]);
+    onChange([
+      min,
+      max === "" ? 10000 : max
+    ]);
   };
 
   return (
     <div className="space-y-2">
-      {/* Increased margin-top for more spacing below label */}
+      <label className="block mb-2 text-gray-400 text-sm">Price Range</label>
       <div className="mt-7 grid grid-cols-2 gap-3">
         <div className="flex flex-col">
           <input
